@@ -76,7 +76,9 @@ mesos旨在为多种框架有效共享集群提供可伸缩,有弹性的核心.�
 
 ##### 3.2  概述
 
-图2显示了mesos主要组件.mesos 由master进程,slave 守护进程,框架构成.master管理集群节点上的slave 进程, 框架安排任务在salve上运行.
+![架构图](http://mesos.apache.org/assets/img/documentation/architecture3.jpg)
+
+架构图显示了mesos主要组件.mesos 由master进程,slave 守护进程,框架构成.master管理集群节点上的slave 进程, 框架安排任务在salve上运行.
 master 使用resource offers 实现细粒度跨框架资源共享.
 每个资源供给包含由多个slave可用资源构成的列表.
 master根据给定的组织策略(如公平分享,严格优先级),决定供给每个框架多少资源.
@@ -86,7 +88,10 @@ master根据给定的组织策略(如公平分享,严格优先级),决定供给�
 运行在mesos之上的框架由两个组件构成:一个注册到master上,接受资源供给的调度器, 一个在slave节点上启动,运行框架任务的executor进程.
 虽然master决定供给每个框架多少资源,框架的调度器来选择自己使用哪些供给.
 当框架接受供给后,它传递给mesos一份想要在mesos上运行任务的描述,接着,mesos 在slave上启动相应的的任务.
-图3展示了一个框架怎样被调度来运行一个任务.在步骤(1), salve 1 向master报告它有4个cpu,4GB可用内存, master 调用分配策略模块, 分配模块告知master, 向框架1供给所有可用资源.
+
+![资源供给图](http://mesos.apache.org/assets/img/documentation/architecture-example.jpg)
+
+资源供给图展示了一个框架怎样被调度来运行一个任务.在步骤(1), salve 1 向master报告它有4个cpu,4GB可用内存, master 调用分配策略模块, 分配模块告知master, 向框架1供给所有可用资源.
 在步骤(2),master给框架1发送一份可以在salve 1上使用的资源描述.
 步骤(3), 框架调度器回应给master两个运行任务, 第一个任务使用<2cpu, 1G ram>, 第二个使用<1cpu,2G ram>.
 最后,步骤(4), master 向slave发送任务,slave为框架executor分配相应的资源,executor启动两个任务.剩下的1cpu,1Gb内存仍然未分配, 可能会被供给框架2.
