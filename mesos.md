@@ -3,9 +3,13 @@
 #### 概述
 
 我们提出mesos, 一个能在多种不同集群计算框架(例如hadoop,mpi等)之间共享集群的平台.共享改善了集群的资源利用,避免了每框架应用数据的复制.
-mesos能以细粒度方式分享资源, 允许框架通过轮流读取每个机器上的数据, 来完成数据局部性.为了支持当今框架使用日益复杂的调度器, mesos 引入了叫做resource offers的分布式双层调度机制.
+mesos能以细粒度方式分享资源, 允许框架通过轮流读取每个机器上的数据,来完成数据局部性.为了支持当今框架使用日益复杂的调度器, mesos 引入了叫做resource offers的分布式双层调度机制.
 mesos来决定供给每个框架多少资源,与此同时框架可以决定接受哪些资源,哪些计算运行在其上.
 我们的测试结果显示,在多个计算框架之间共享集群, mesos能达到接近最优的数据局部性,能延伸到50,000模拟节点.
+
+
+
+
 
 #### 1. 引入
 
@@ -112,6 +116,115 @@ mesos 代理分配决策到一个可插拔的分配模块, 如此组织可以根
 这就使得f1的cpu 份额等于f2的内存份额,同时完全使用了内存这项资源.
 DRF是最大最小公平的自然泛化.drf满足上面提到的所有属性,能在O(logn)时间调度n个框架.
 
+假设系统有9个cpu,18GB内存,有两个用户(框架), 用户A请求任务所需资源<1 cpu, 4GB 内存>, 用户B 请求任务所需资源<3 cpu, 1GB 内存>. 在这种情况下,用户A的任务消耗了1/9 cpu, 2/9 mem, 用户B的任务消耗了1/3 cpu, 1/18 mem.用户A的主导资源是mem,用户B主要资源是cpu.drf 试图均等用户的主导资源,最终系统分配了3 个用户A的任务,总消耗<3 cpu, 12GB>, 2 个用户B的任务,总消耗<6 cpu, 2GB>. 
+
+![分配过程图](http://dongxicheng.org/wp-content/uploads/2012/04/mesos-scheduler-example.jpg)
+
+drf实现(假设用户寻求向量长度为1, 分配后无任务回收):
+```
+package main
+
+import (
+	"container/heap"
+	"fmt"
+	"math"
+)
+
+type userShare struct {
+	user  string  //user name
+	share float64 //dominant resource share
+}
+
+//记录系统的全部资源容量
+var resourceCapacity = map[string]uint{
+	"cpu": 9,
+	"mem": 18,
+}
+
+//记录每种资源的消费情况
+var resourceConsumed = map[string]uint{
+	"cpu": 0,
+	"mem": 0,
+}
+
+//跟踪每个用户当前主导资源比例
+var drs = map[string]userShare{
+	"user b": userShare{user: "user b", share: 0.0},
+	"user a": userShare{user: "user a", share: 0.0},
+}
+
+//记录每个用户当前累计获得的资源分配
+var UserAlloc = map[string]*Task{}
+
+//用户的资源分配请求
+type Task struct {
+	cpu uint
+	mem uint
+}
+
+//假设用户每次请求资源相同,即 demand vector 里面元素相同
+var UserTasks = map[string][]Task{
+	"user a": []Task{{cpu: 1, mem: 4}},
+	"user b": []Task{{cpu: 3, mem: 1}},
+}
+
+type minHeap []userShare
+
+func (mh minHeap) Len() int           { return len(mh) }
+func (mh minHeap) Less(i, j int) bool { return mh[i].share < mh[j].share }
+func (mh minHeap) Swap(i, j int)      { mh[i], mh[j] = mh[j], mh[i] }
+func (mh *minHeap) Push(x interface{}) {
+	*mh = append(*mh, x.(userShare))
+}
+func (mh *minHeap) Pop() interface{} {
+	old := *mh
+	n := len(old)
+	x := old[n-1]
+	*mh = old[0 : n-1]
+	return x
+}
+
+func drf() {
+	for {
+		ds := &minHeap{}
+		for _, e := range drs {
+			*ds = append(*ds, e)
+		}
+		heap.Init(ds)
+		min := heap.Pop(ds).(userShare)
+		t := UserTasks[min.user][0]
+		if resourceConsumed["cpu"]+t.cpu <= resourceCapacity["cpu"] &&
+			resourceConsumed["mem"]+t.mem <= resourceCapacity["mem"] {
+
+			fmt.Printf("system will allocate task <%d cpu ,%d mem> for %s\n",
+				t.cpu, t.mem, min.user)
+			resourceConsumed["cpu"] += t.cpu
+			resourceConsumed["mem"] += t.mem
+			if _, ok := UserAlloc[min.user]; !ok {
+				UserAlloc[min.user] = &Task{}
+			}
+			UserAlloc[min.user].cpu += t.cpu
+			UserAlloc[min.user].mem += t.mem
+			cpuShare := float64(UserAlloc[min.user].cpu) / float64(resourceCapacity["cpu"])
+			memShare := float64(UserAlloc[min.user].mem) / float64(resourceCapacity["mem"])
+
+			drs[min.user] = userShare{min.user, math.Max(cpuShare, memShare)}
+		} else {
+			fmt.Printf("system full\n")
+			fmt.Printf("total resource consumed %v \n", resourceConsumed)
+			for user, usage := range UserAlloc {
+				fmt.Printf("%s , cpu: %d , mem: %d\n", user, usage.cpu, usage.mem)
+			}
+			return
+		}
+	}
+}
+
+func main() {
+	drf()
+}
+
+```
 ###### 3.3.2 支持长任务
 
 除了包含短任务的细粒度工作量,mesos也能支持包含像web service ,mpi 程序这样长任务的框架.
