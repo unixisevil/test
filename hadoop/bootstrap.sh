@@ -48,7 +48,7 @@ elif  [ "${HADOOP_ROLE}" = "master" ]; then
     : > $HADOOP_CONF_DIR/slaves
 	while :; do
 		old=$(cat $HADOOP_CONF_DIR/slaves 2>&-|sort -u)
-		new=$(dig +short $HADOOP_SLAVE 2>&-|sort -u)
+		new=$(dig +short $HADOOP_SLAVE $HADOOP_MASTER 2>&-|sort -u)
 		if [ "${new}" !=  "${old}" ];then
 			lognew=$(echo -e "${new}" | tr '\n' ',')
 			logold=$(echo -e "${old}" | tr '\n' ',')
