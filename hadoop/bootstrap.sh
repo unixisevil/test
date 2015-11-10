@@ -1,48 +1,65 @@
 #!/bin/bash
+set -e
 
 : ${HADOOP_PREFIX:=/usr/local/hadoop}
-
-role=$1
-
-$HADOOP_PREFIX/etc/hadoop/hadoop-env.sh
-
-rm /tmp/*.pid
-#host_ip=$(ifconfig eth0|awk -F '[: ]*' '/inet addr/{print $4}')
+. $HADOOP_PREFIX/etc/hadoop/hadoop-env.sh
 
 if [ -z $HADOOP_MASTER ];then
-    echo "HADOOP_MASTER not set" && exit 1
+    echo "require env HADOOP_MASTER"
+	exit 1
+fi
+if [ -z "${HADOOP_ROLE}" ]; then
+	echo "require env HADOOP_ROLE"
+	exit 1
 fi
 
-if [ -z $HADOOP_SLAVE ];then
-    echo "HADOOP_SLAVE not set" && exit 1
-fi
+rm -f /tmp/*.pid
 
-sed -i  s/master/$HADOOP_MASTER/  \
+sed -i  s/{CSPHERE_MASTER_TO_BE_REPLACED}/$HADOOP_MASTER/  \
         $HADOOP_CONF_DIR/core-site.xml  \
         $HADOOP_CONF_DIR/yarn-site.xml
 
-service sshd start
 
-if  [ $role = "master" ]; then
+if [ "${HADOOP_ROLE}" == "slave" ]; then
+	rm -f  $HADOOP_CONF_DIR/mapred-site.xml
+	rm -f  $HADOOP_CONF_DIR/slaves
+	service sshd start
+	while true;do
+		sleep  100
+	done
 
-    sed -i  s/master/$HADOOP_MASTER/   $HADOOP_CONF_DIR/mapred-site.xml
-    echo > $HADOOP_CONF_DIR/slaves
+elif  [ "${HADOOP_ROLE}" = "master" ]; then
+	if [ -z $HADOOP_SLAVE ];then
+		echo "require env HADOOP_SLAVE"
+		exit 1
+	fi
+
+    sed -i  s/{CSPHERE_MASTER_TO_BE_REPLACED}/$HADOOP_MASTER/  \
+		$HADOOP_CONF_DIR/mapred-site.xml
+
+	# confirm it safe ???
     echo y | hdfs namenode -format
-        start-dfs.sh
-        start-yarn.sh
-    while true;do
-           sleep 5
-           if [ -z $HADOOP_SLAVE ];then
-               continue
-           fi
-           for  s  in  $(dig +short  $HADOOP_SLAVE); do
-               echo  $s  >> $HADOOP_CONF_DIR/slaves
-           done
-           content=$(cat $HADOOP_CONF_DIR/slaves|sort -u)
-           echo -e  "$HADOOP_MASTER\n$content"  >  $HADOOP_CONF_DIR/slaves
-    done
-fi
 
-while true;do
-    sleep  100
-done
+	# start local svrs first
+	start-dfs.sh
+	start-yarn.sh
+
+    : > $HADOOP_CONF_DIR/slaves
+	while :; do
+		old=$(cat $HADOOP_CONF_DIR/slaves 2>&-|sort -u)
+		new=$(dig +short $HADOOP_SLAVE 2>&-|sort -u)
+		if [ "${new}" !=  "${old}" ];then
+			echo "slave nodes changed,  new: [${new}], old: [${old}]"
+			echo -e  "${new}" >  $HADOOP_CONF_DIR/slaves
+			start-dfs.sh
+			start-yarn.sh
+			hdfs dfsadmin -refreshNodes
+			yarn rmadmin  -refreshNodes
+		fi
+		sleep 5s
+	done
+
+else
+	echo "env HADOOP_ROLE must be slave or master, abort."
+	exit 1
+fi
