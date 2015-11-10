@@ -38,6 +38,8 @@ elif  [ "${HADOOP_ROLE}" = "master" ]; then
     sed -i  s/{CSPHERE_MASTER_TO_BE_REPLACED}/$HADOOP_MASTER/  \
 		$HADOOP_CONF_DIR/mapred-site.xml
 
+	service sshd start
+
 	# confirm it safe ???
     echo y | hdfs namenode -format
 
