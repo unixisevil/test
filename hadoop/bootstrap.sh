@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 : ${HADOOP_PREFIX:=/usr/local/hadoop}
 . $HADOOP_PREFIX/etc/hadoop/hadoop-env.sh
@@ -19,6 +18,8 @@ sed -i  s/{CSPHERE_MASTER_TO_BE_REPLACED}/$HADOOP_MASTER/  \
         $HADOOP_CONF_DIR/core-site.xml  \
         $HADOOP_CONF_DIR/yarn-site.xml
 
+
+touch $HADOOP_CONF_DIR/dfs.hosts.exclude
 
 if [ "${HADOOP_ROLE}" == "slave" ]; then
 	rm -f  $HADOOP_CONF_DIR/mapred-site.xml
@@ -49,7 +50,9 @@ elif  [ "${HADOOP_ROLE}" = "master" ]; then
 		old=$(cat $HADOOP_CONF_DIR/slaves 2>&-|sort -u)
 		new=$(dig +short $HADOOP_SLAVE 2>&-|sort -u)
 		if [ "${new}" !=  "${old}" ];then
-			echo "slave nodes changed,  new: [${new}], old: [${old}]"
+			lognew=$(echo -e "${new}" | tr '\n' ',')
+			logold=$(echo -e "${old}" | tr '\n' ',')
+			echo -e "slave nodes changed,  new: [${lognew}], old: [${logold}]"
 			echo -e  "${new}" >  $HADOOP_CONF_DIR/slaves
 			start-dfs.sh
 			start-yarn.sh
