@@ -40,8 +40,7 @@ elif  [ "${HADOOP_ROLE}" = "master" ]; then
 
 	service sshd start
 
-	# confirm it safe ???
-    echo y | hdfs namenode -format
+    echo n | hdfs namenode -format
 
 	# start local svrs first
 	start-dfs.sh
