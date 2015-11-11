@@ -19,4 +19,29 @@
  <description>Determines where on the local filesystem an DFS data node should store its blocks. If this is a comma-delimited list of directories, then data will be stored in all named directories, typically on different devices. Directories that do not exist are ignored.
  </description>
 </property>
+
+<property>
+ <name>dfs.hosts.exclude</name>
+ <value>/usr/local/hadoop/etc/hadoop/dfs.hosts.exclude</value>
+ <description></description>
+</property>
+
+<property>
+ <name>dfs.heartbeat.interval</name>
+ <value>10</value>
+ <description></description>
+</property>
+
+<property>
+ <name>dfs.heartbeat.recheck.interval</name>
+ <value>10</value>
+ <description></description>
+</property>
+
+<property>
+ <name>dfs.namenode.decommission.interval</name>
+ <value>10</value>
+ <description></description>
+</property>
+
 </configuration>

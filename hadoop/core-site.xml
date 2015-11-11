@@ -7,7 +7,7 @@
 
 <property>
   <name>fs.defaultFS</name>
-  <value>hdfs://master:54310</value>
+  <value>hdfs://{CSPHERE_MASTER_TO_BE_REPLACED}:54310</value>
   <description>Use HDFS as file storage engine</description>
 </property>
 </configuration>
