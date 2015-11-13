@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 : ${HADOOP_PREFIX:=/usr/local/hadoop}
 . $HADOOP_PREFIX/etc/hadoop/hadoop-env.sh
@@ -20,6 +19,8 @@ sed -i  s/{CSPHERE_MASTER_TO_BE_REPLACED}/$HADOOP_MASTER/  \
         $HADOOP_CONF_DIR/yarn-site.xml
 
 
+touch $HADOOP_CONF_DIR/dfs.hosts.exclude
+
 if [ "${HADOOP_ROLE}" == "slave" ]; then
 	rm -f  $HADOOP_CONF_DIR/mapred-site.xml
 	rm -f  $HADOOP_CONF_DIR/slaves
@@ -37,8 +38,9 @@ elif  [ "${HADOOP_ROLE}" = "master" ]; then
     sed -i  s/{CSPHERE_MASTER_TO_BE_REPLACED}/$HADOOP_MASTER/  \
 		$HADOOP_CONF_DIR/mapred-site.xml
 
-	# confirm it safe ???
-    echo y | hdfs namenode -format
+	service sshd start
+
+    echo n | hdfs namenode -format
 
 	# start local svrs first
 	start-dfs.sh
@@ -47,9 +49,11 @@ elif  [ "${HADOOP_ROLE}" = "master" ]; then
     : > $HADOOP_CONF_DIR/slaves
 	while :; do
 		old=$(cat $HADOOP_CONF_DIR/slaves 2>&-|sort -u)
-		new=$(dig +short $HADOOP_SLAVE 2>&-|sort -u)
+		new=$(dig +search +short $HADOOP_SLAVE $HADOOP_MASTER 2>&-|sort -u)
 		if [ "${new}" !=  "${old}" ];then
-			echo "slave nodes changed,  new: [${new}], old: [${old}]"
+			lognew=$(echo -e "${new}" | tr '\n' ',')
+			logold=$(echo -e "${old}" | tr '\n' ',')
+			echo -e "slave nodes changed,  new: [${lognew}], old: [${logold}]"
 			echo -e  "${new}" >  $HADOOP_CONF_DIR/slaves
 			start-dfs.sh
 			start-yarn.sh
